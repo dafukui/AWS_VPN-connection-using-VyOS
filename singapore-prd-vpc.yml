@@ -1,0 +1,230 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: "Create VPC-B"
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Network Configuration"
+        Parameters:
+          - VPCName
+          - VPCCider
+          - IGWName
+          - RouteTableName
+          - NetworkAclName
+          - SubnetName01
+          - SubnetCider01
+          - SubnetName02
+          - SubnetCider02
+      - Label:
+          default: "IAM Configuration"
+        Parameters:
+          - IAMRoleName
+      - Label:
+          default: "EC2 Configuration"
+        Parameters:
+          - EC2Name
+          - EC2ImageID
+          - EC2InstanceType
+          - EC2KeyPair
+          - EC2VolumeSize
+          - SecurityGroupName
+Parameters:
+  VPCCider:
+    Type: String
+    Default: 192.168.0.0/16
+  VPCName:
+    Type: String
+    Default: singapore-prd-vpc
+  IGWName:
+    Type: String
+    Default: singapore-prd-igw
+  RouteTableName:
+    Type: String
+    Default: singapore-prd-rtb
+  NetworkAclName:
+    Type: String
+    Default: singapore-prd-acl
+  SubnetName01:
+    Type: String
+    Default: singapore-prd-subnet01
+  SubnetName02:
+    Type: String
+    Default: singapore-prd-subnet02
+  SubnetCider01:
+    Type: String
+    Default: 192.168.1.0/24
+  SubnetCider02:
+    Type: String
+    Default: 192.168.2.0/24
+  SecurityGroupName:
+    Type: String
+    Default: singapore-prd-server-sg
+  EC2Name:
+    Type: String
+    Default: singapore-prd-server
+  EC2ImageID:
+    Type: String
+    Default: ami-035c1e57873991ca2
+  EC2InstanceType:
+    Type: String
+    Default: t2.micro
+  EC2KeyPair:
+    Type: AWS::EC2::KeyPair::KeyName
+  EC2VolumeSize:
+    Type: String
+    Default: 35
+  IAMRoleName:
+    Type: String
+    Default: singapore-prd-server-role
+Resources:
+  myVPC:
+    Type: "AWS::EC2::VPC"
+    Properties:
+      CidrBlock: !Ref VPCCider
+      Tags:
+        - Key: Name
+          Value: !Ref VPCName
+  myIGW:
+    Type: "AWS::EC2::InternetGateway"
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Ref IGWName
+  myAttachIGW:
+    Type: "AWS::EC2::VPCGatewayAttachment"
+    Properties:
+      VpcId: !Ref myVPC
+      InternetGatewayId: !Ref myIGW
+  myRouteTable:
+    Type: "AWS::EC2::RouteTable"
+    Properties:
+      VpcId: !Ref myVPC
+      Tags:
+        - Key: Name
+          Value: !Ref RouteTableName
+  myPublicrtb:
+    Type: "AWS::EC2::Route"
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref myIGW
+      RouteTableId: !Ref myRouteTable
+  myACL:
+    Type: "AWS::EC2::NetworkAcl"
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Ref NetworkAclName
+      VpcId: !Ref myVPC
+  myNetworkEgressAclEgressEntry:
+    Type: "AWS::EC2::NetworkAclEntry"
+    Properties:
+      CidrBlock: 0.0.0.0/0
+      Egress: true
+      NetworkAclId: !Ref myACL
+      Protocol: -1
+      RuleAction : allow
+      RuleNumber : 100
+  myNetworkEgressAclIngressEntry:
+    Type: "AWS::EC2::NetworkAclEntry"
+    Properties:
+      CidrBlock: 0.0.0.0/0
+      Egress: false
+      NetworkAclId: !Ref myACL
+      Protocol: -1
+      RuleAction : allow
+      RuleNumber : 100
+  mySubnet1a:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref myVPC
+      AvailabilityZone: ap-southeast-1a
+      CidrBlock: !Ref SubnetCider01
+      Tags:
+        - Key: Name
+          Value: !Ref SubnetName01
+  mySubnet1c:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref myVPC
+      AvailabilityZone: ap-southeast-1c
+      CidrBlock: !Ref SubnetCider02
+      Tags:
+        - Key: Name
+          Value: !Ref SubnetName02
+  myPublicRtb1:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      SubnetId: !Ref mySubnet1a
+      RouteTableId: !Ref myRouteTable
+  myPublicRtb2:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      SubnetId: !Ref mySubnet1c
+      RouteTableId: !Ref myRouteTable
+  myAclAssociation1:
+    Type: "AWS::EC2::SubnetNetworkAclAssociation"
+    Properties:
+      SubnetId: !Ref mySubnet1a
+      NetworkAclId: !Ref myACL
+  myAclAssociation2:
+    Type: "AWS::EC2::SubnetNetworkAclAssociation"
+    Properties:
+      SubnetId: !Ref mySubnet1c
+      NetworkAclId: !Ref myACL
+  mySecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      VpcId: !Ref myVPC
+      GroupName: !Ref SecurityGroupName
+      GroupDescription: "SecurityGroup for Server"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '3389'
+          ToPort: '3389'
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value:  !Ref SecurityGroupName
+  myIAMRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Principal:
+              Service:
+                - "ec2.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
+      RoleName: !Ref IAMRoleName
+  myInstanceProfile:
+    Type: "AWS::IAM::InstanceProfile"
+    Properties:
+      Path: "/"
+      Roles:
+        - !Ref myIAMRole
+  myServer:
+    Type: "AWS::EC2::Instance"
+    Properties:
+      AvailabilityZone: ap-southeast-1c
+      ImageId: !Ref EC2ImageID
+      InstanceType: !Ref EC2InstanceType
+      KeyName: !Ref EC2KeyPair
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeType: gp2
+            VolumeSize: !Ref EC2VolumeSize
+            DeleteOnTermination: true
+      SecurityGroupIds:
+        - !Ref mySecurityGroup
+      IamInstanceProfile: !Ref myInstanceProfile
+      SubnetId: !Ref mySubnet1c
+      Tags:
+        - Key: Name
+          Value: !Ref EC2Name
