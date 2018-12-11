@@ -16,10 +16,6 @@ Metadata:
           - SubnetName02
           - SubnetCider02
       - Label:
-          default: "IAM Configuration"
-        Parameters:
-          - IAMRoleName
-      - Label:
           default: "EC2 Configuration"
         Parameters:
           - EC2Name
@@ -73,9 +69,6 @@ Parameters:
   EC2VolumeSize:
     Type: String
     Default: 35
-  IAMRoleName:
-    Type: String
-    Default: tokyo-prd-server-role
 Resources:
   myVPC:
     Type: "AWS::EC2::VPC"
@@ -182,32 +175,24 @@ Resources:
           FromPort: '3389'
           ToPort: '3389'
           CidrIp: 0.0.0.0/0
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '3389'
+          ToPort: '3389'
+          CidrIp: 192.168.2.0/24
+      SecurityGroupIngress:
+        - IpProtocol: icmp
+          FromPort: '-1'
+          ToPort: '-1'
+          CidrIp: 192.168.1.0/24
+      SecurityGroupIngress:
+        - IpProtocol: icmp
+          FromPort: '-1'
+          ToPort: '-1'
+          CidrIp: 192.168.2.0/24
       Tags:
         - Key: Name
           Value:  !Ref SecurityGroupName
-  myIAMRole:
-    Type: "AWS::IAM::Role"
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          -
-            Effect: "Allow"
-            Principal:
-              Service:
-                - "ec2.amazonaws.com"
-            Action:
-              - "sts:AssumeRole"
-      Path: "/"
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
-      RoleName: !Ref IAMRoleName
-  myInstanceProfile:
-    Type: "AWS::IAM::InstanceProfile"
-    Properties:
-      Path: "/"
-      Roles:
-        - !Ref myIAMRole
   myServer:
     Type: "AWS::EC2::Instance"
     Properties:
@@ -223,12 +208,7 @@ Resources:
             DeleteOnTermination: true
       SecurityGroupIds:
         - !Ref mySecurityGroup
-      IamInstanceProfile: !Ref myInstanceProfile
       SubnetId: !Ref mySubnet1a
       Tags:
         - Key: Name
           Value: !Ref EC2Name
-  myServerEIP:
-    Type: "AWS::EC2::EIP"
-    Properties:
-      InstanceId: !Ref myServer

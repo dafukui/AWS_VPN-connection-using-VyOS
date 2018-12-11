@@ -16,18 +16,23 @@ Metadata:
           - SubnetName02
           - SubnetCider02
       - Label:
-          default: "IAM Configuration"
+          default: "EC2 Configuration [VyOS]"
         Parameters:
-          - IAMRoleName
+          - EC2Name01
+          - EC2ImageID01
+          - EC2InstanceType01
+          - EC2KeyPair01
+          - EC2VolumeSize01
+          - SecurityGroupName01
       - Label:
-          default: "EC2 Configuration"
+          default: "EC2 Configuration [Windows]"
         Parameters:
-          - EC2Name
-          - EC2ImageID
-          - EC2InstanceType
-          - EC2KeyPair
-          - EC2VolumeSize
-          - SecurityGroupName
+          - EC2Name02
+          - EC2ImageID02
+          - EC2InstanceType02
+          - EC2KeyPair02
+          - EC2VolumeSize02
+          - SecurityGroupName02
 Parameters:
   VPCCider:
     Type: String
@@ -47,35 +52,49 @@ Parameters:
   SubnetName01:
     Type: String
     Default: singapore-prd-subnet01
-  SubnetName02:
-    Type: String
-    Default: singapore-prd-subnet02
   SubnetCider01:
     Type: String
     Default: 192.168.1.0/24
+  SubnetName02:
+    Type: String
+    Default: singapore-prd-subnet02
   SubnetCider02:
     Type: String
     Default: 192.168.2.0/24
-  SecurityGroupName:
+  EC2Name01:
     Type: String
-    Default: singapore-prd-server-sg
-  EC2Name:
+    Default: singapore-prd-vyos
+  EC2ImageID01:
     Type: String
-    Default: singapore-prd-server
-  EC2ImageID:
-    Type: String
-    Default: ami-035c1e57873991ca2
-  EC2InstanceType:
+    Default: ami-0ab2e769
+  EC2InstanceType01:
     Type: String
     Default: t2.micro
-  EC2KeyPair:
+  EC2KeyPair01:
     Type: AWS::EC2::KeyPair::KeyName
-  EC2VolumeSize:
+  EC2VolumeSize01:
+    Type: String
+    Default: 4
+  SecurityGroupName01:
+    Type: String
+    Default: singapore-prd-vyos-sg
+  EC2Name02:
+    Type: String
+    Default: singapore-prd-server
+  EC2ImageID02:
+    Type: String
+    Default: ami-035c1e57873991ca2
+  EC2InstanceType02:
+    Type: String
+    Default: t2.micro
+  EC2KeyPair02:
+    Type: AWS::EC2::KeyPair::KeyName
+  EC2VolumeSize02:
     Type: String
     Default: 35
-  IAMRoleName:
+  SecurityGroupName02:
     Type: String
-    Default: singapore-prd-server-role
+    Default: singapore-prd-server-sg
 Resources:
   myVPC:
     Type: "AWS::EC2::VPC"
@@ -171,60 +190,89 @@ Resources:
     Properties:
       SubnetId: !Ref mySubnet1c
       NetworkAclId: !Ref myACL
-  mySecurityGroup:
+  mySecurityGroup1:
     Type: "AWS::EC2::SecurityGroup"
     Properties:
       VpcId: !Ref myVPC
-      GroupName: !Ref SecurityGroupName
+      GroupName: !Ref SecurityGroupName01
+      GroupDescription: "SecurityGroup for vyos"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '3389'
+          ToPort: '3389'
+          CidrIp: 192.168.2.0/24
+        - IpProtocol: icmp
+          FromPort: '-1'
+          ToPort: '-1'
+          CidrIp: 192.168.2.0/24
+      Tags:
+        - Key: Name
+          Value:  !Ref SecurityGroupName01
+  mySecurityGroup2:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      VpcId: !Ref myVPC
+      GroupName: !Ref SecurityGroupName02
       GroupDescription: "SecurityGroup for Server"
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: '3389'
           ToPort: '3389'
           CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '3389'
+          ToPort: '3389'
+          CidrIp: 10.0.1.0/24
+        - IpProtocol: icmp
+          FromPort: '-1'
+          ToPort: '-1'
+          CidrIp: 10.0.1.0/24
       Tags:
         - Key: Name
-          Value:  !Ref SecurityGroupName
-  myIAMRole:
-    Type: "AWS::IAM::Role"
+          Value:  !Ref SecurityGroupName02
+  myServer01:
+    Type: "AWS::EC2::Instance"
     Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          -
-            Effect: "Allow"
-            Principal:
-              Service:
-                - "ec2.amazonaws.com"
-            Action:
-              - "sts:AssumeRole"
-      Path: "/"
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
-      RoleName: !Ref IAMRoleName
-  myInstanceProfile:
-    Type: "AWS::IAM::InstanceProfile"
-    Properties:
-      Path: "/"
-      Roles:
-        - !Ref myIAMRole
-  myServer:
+      AvailabilityZone: ap-southeast-1a
+      ImageId: !Ref EC2ImageID01
+      InstanceType: !Ref EC2InstanceType01
+      KeyName: !Ref EC2KeyPair01
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeType: gp2
+            VolumeSize: !Ref EC2VolumeSize01
+            DeleteOnTermination: true
+      SecurityGroupIds:
+        - !Ref mySecurityGroup1
+      SubnetId: !Ref mySubnet1a
+      Tags:
+        - Key: Name
+          Value: !Ref EC2Name01
+  myServer02:
     Type: "AWS::EC2::Instance"
     Properties:
       AvailabilityZone: ap-southeast-1c
-      ImageId: !Ref EC2ImageID
-      InstanceType: !Ref EC2InstanceType
-      KeyName: !Ref EC2KeyPair
+      ImageId: !Ref EC2ImageID02
+      InstanceType: !Ref EC2InstanceType02
+      KeyName: !Ref EC2KeyPair02
       BlockDeviceMappings:
         - DeviceName: /dev/sda1
           Ebs:
             VolumeType: gp2
-            VolumeSize: !Ref EC2VolumeSize
+            VolumeSize: !Ref EC2VolumeSize02
             DeleteOnTermination: true
       SecurityGroupIds:
-        - !Ref mySecurityGroup
-      IamInstanceProfile: !Ref myInstanceProfile
+        - !Ref mySecurityGroup2
       SubnetId: !Ref mySubnet1c
       Tags:
         - Key: Name
-          Value: !Ref EC2Name
+          Value: !Ref EC2Name02
+  myServer01EIP:
+    Type: "AWS::EC2::EIP"
+    Properties:
+      InstanceId: !Ref myServer01
